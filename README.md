@@ -73,16 +73,13 @@ Whispr is a Discord bot that allows users to send anonymous confessions and repl
 
 ## How to Add Whispr to Your Server
 
-1. **Get the bot invite link:**  
-   The bot owner (you) should generate an OAuth2 invite link from the [Discord Developer Portal](https://discord.com/developers/applications) for your bot with the required permissions (`Send Messages`, `Read Messages`, `Add Reactions`, `Read Message History`, `View Channels`).
-
-2. **Share the invite link:**  
-   Anyone can use this link to add Whispr to their server.
+1. **Use the invite link below:**  
+   Anyone can use this link to add Whispr to their server:
 
    **Demo Invite Link:**  
-   [Click here to invite Whispr to your server](YOUR_OAUTH_INVITE_LINK_HERE)
+   [Click here to invite Whispr to your server](https://discord.com/oauth2/authorize?client_id=1390659226401116341&permissions=75840&integration_type=0&scope=bot)
 
-3. **After inviting:**  
+2. **After inviting:**  
    - An admin should run `!setup #channel` in their server to set the confession channel.
    - Users can then DM the bot to send confessions and replies.
 
@@ -103,3 +100,5 @@ Whispr is designed to be an easy drop-in solution for anonymous confessions in D
 ---
 
 Enjoy anonymous confessions with Whispr!
+---
+

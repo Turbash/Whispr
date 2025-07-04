@@ -193,12 +193,27 @@ async def on_message(message):
                 await message.channel.send(f"⚠️ Confession #{int(code):03d} not found. Your reply was posted as a normal message.")
             return
 
-        now = time.time()
-        last = user_last_confession.get(message.author.id, 0)
-        if now - last < CONFESSION_RATE_LIMIT:
-            await message.channel.send("⏳ Please wait before sending another confession.")
+        confession_channel = None
+        for guild in bot.guilds:
+            guild_map = load_guild_map()
+            channel_id = guild_map.get(str(guild.id))
+            if channel_id:
+                channel = bot.get_channel(channel_id)
+                if channel:
+                    confession_channel = channel
+                    break
+        if confession_channel is None:
+            await message.channel.send("❌ Confession channel not found. Please contact the admin.")
             return
-        user_last_confession[message.author.id] = now
+
+        guild_id = confession_channel.guild.id
+        key = (message.author.id, guild_id)
+        now = time.time()
+        last = user_last_confession.get(key, 0)
+        if now - last < CONFESSION_RATE_LIMIT:
+            await message.channel.send("⏳ Please wait before sending another confession in this server.")
+            return
+        user_last_confession[key] = now
 
         content = message.content.strip()
         if not content:
