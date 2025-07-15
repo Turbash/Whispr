@@ -139,7 +139,16 @@ class ServerSelectView(discord.ui.View):
             return
         
         code = get_next_confession_code(guild_id)
-        confession_msg = await confession_channel.send(f"💬 **Anonymous Confession #{code:03d}:**\n{content}")
+        
+        embed = discord.Embed(
+            title=f"💬 Anonymous Confession #{code:03d}",
+            description=content,
+            color=0x3498db,
+            timestamp=discord.utils.utcnow()
+        )
+        embed.set_footer(text=f"Reply using: DM me 'reply #{code:03d} your message'")
+        
+        confession_msg = await confession_channel.send(embed=embed)
         await confession_msg.add_reaction("👍")
         await confession_msg.add_reaction("👎")
         
@@ -179,10 +188,8 @@ class ReplySelectView(discord.ui.View):
             confession_channel = self.confession_channels[index]
             await interaction.response.defer()
             
-            # Process the reply
             await self.process_reply(confession_channel, self.user_message, self.code, self.reply_content)
             
-            # Edit the original message to show success
             embed = discord.Embed(
                 title="✅ Server Selected!",
                 description=f"Your reply will be posted in **{confession_channel.guild.name}**",
@@ -195,15 +202,23 @@ class ReplySelectView(discord.ui.View):
     async def process_reply(self, confession_channel, user_message, code, reply_content):
         confession_message = None
         async for msg in confession_channel.history(limit=100):
-            if msg.author == bot.user and msg.content.startswith(f"💬 **Anonymous Confession #{int(code):03d}:**"):
+            if (msg.author == bot.user and 
+                msg.embeds and 
+                msg.embeds[0].title and 
+                msg.embeds[0].title.startswith(f"💬 Anonymous Confession #{int(code):03d}")):
                 confession_message = msg
                 break
         
         if confession_message:
-            await confession_channel.send(
-                f"💬 **Anonymous Reply to Confession #{int(code):03d}:**\n{reply_content}",
-                reference=confession_message
+            reply_embed = discord.Embed(
+                title=f"💬 Anonymous Reply to Confession #{int(code):03d}",
+                description=reply_content,
+                color=0xe74c3c,
+                timestamp=discord.utils.utcnow()
             )
+            reply_embed.set_footer(text="This is an anonymous reply")
+            
+            await confession_channel.send(embed=reply_embed, reference=confession_message)
             await user_message.channel.send(f"✅ Your anonymous reply to confession #{int(code):03d} has been posted in **{confession_channel.guild.name}**!")
             
             confession_map = load_confession_map()
@@ -217,7 +232,15 @@ class ReplySelectView(discord.ui.View):
                 except Exception:
                     pass
         else:
-            await confession_channel.send(f"💬 **Anonymous Reply to Confession #{int(code):03d}:**\n{reply_content}")
+            reply_embed = discord.Embed(
+                title=f"💬 Anonymous Reply to Confession #{int(code):03d}",
+                description=reply_content,
+                color=0xe74c3c,
+                timestamp=discord.utils.utcnow()
+            )
+            reply_embed.set_footer(text="Original confession not found")
+            
+            await confession_channel.send(embed=reply_embed)
             await user_message.channel.send(f"⚠️ Confession #{int(code):03d} not found in **{confession_channel.guild.name}**. Your reply was posted as a normal message.")
     
     async def on_timeout(self):
@@ -269,15 +292,30 @@ async def on_message(message):
         confession_channels = []
         guild_map = load_guild_map()
         
+        user_guilds = []
         for guild in bot.guilds:
+            try:
+                member = await guild.fetch_member(message.author.id)
+                if member:
+                    user_guilds.append(guild)
+            except discord.NotFound:
+                continue
+            except discord.Forbidden:
+                try:
+                    member = guild.get_member(message.author.id)
+                    if member:
+                        user_guilds.append(guild)
+                except:
+                    continue
+            except:
+                continue
+        
+        for guild in user_guilds:
             channel_id = guild_map.get(str(guild.id))
             if channel_id:
                 channel = bot.get_channel(channel_id)
                 if channel:
-                    try:
-                        confession_channels.append(channel)
-                    except:
-                        continue
+                    confession_channels.append(channel)
         
         if not confession_channels:
             await message.channel.send(
