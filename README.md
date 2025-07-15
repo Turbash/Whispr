@@ -57,10 +57,6 @@ Whispr is a Discord bot that allows users to send anonymous confessions and repl
   ```
   reply #001 your reply message
   ```
-  or
-  ```
-  reply 001 your reply message
-  ```
   (Replace `001` with the confession number.)
   
   For multiple servers, you'll get buttons to choose which server to reply in.
@@ -92,32 +88,6 @@ Whispr is a Discord bot that allows users to send anonymous confessions and repl
    - An admin should run `!setup #channel` in their server to set the confession channel.
    - Users can then DM the bot to send confessions and replies.
    - Use `!whisprhelp` for detailed usage instructions.
-
-## Deploying on Render
-
-You can deploy Whispr on [Render](https://render.com/) for free. Here’s how:
-
-### 1. Push Your Code to GitHub
-- Make sure your bot code is in a GitHub repository.
-
-### 2. Create a New Web Service on Render
-- Go to [Render Dashboard](https://dashboard.render.com/).
-- Click **"New +"** and select **"Web Service"**.
-- Connect your GitHub repo.
-- For **Environment**, select **Python**.
-- For **Build Command**, use:
-  ```
-  pip install -r requirements.txt
-  ```
-- For **Start Command**, use:
-  ```
-  python bot.py
-  ```
-- Add an environment variable:
-  - Key: `TOKEN`
-  - Value: *your Discord bot token*
-
-## Notes
 
 - **All confessions and replies are completely anonymous** - The bot never reveals user identities publicly.
 - **Multi-server support** - The bot works across multiple servers with independent confession channels and numbering.
