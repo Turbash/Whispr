@@ -395,8 +395,51 @@ async def on_message(message):
                 await message.channel.send(embed=embed, view=view)
                 return
             else:
-                view = ReplySelectView([confession_channels[0]], message, code, reply_content)
-                await view.process_reply(confession_channels[0], message, code, reply_content)
+                confession_channel = confession_channels[0]
+                
+                confession_message = None
+                async for msg in confession_channel.history(limit=100):
+                    if (msg.author == bot.user and 
+                        msg.embeds and 
+                        msg.embeds[0].title and 
+                        msg.embeds[0].title.startswith(f"💬 Anonymous Confession #{int(code):03d}")):
+                        confession_message = msg
+                        break
+                
+                if confession_message:
+                    reply_embed = discord.Embed(
+                        title=f"💬 Anonymous Reply to Confession #{int(code):03d}",
+                        description=reply_content,
+                        color=0xe74c3c,
+                        timestamp=discord.utils.utcnow()
+                    )
+                    reply_embed.set_footer(text="This is an anonymous reply")
+                    
+                    await confession_channel.send(embed=reply_embed, reference=confession_message)
+                    await message.channel.send(f"✅ Your anonymous reply to confession #{int(code):03d} has been posted in **{confession_channel.guild.name}**!")
+                    
+                    confession_map = load_confession_map()
+                    user_id = confession_map.get(str(int(code)))
+                    if user_id:
+                        try:
+                            user = await bot.fetch_user(user_id)
+                            await user.send(
+                                f"📩 Your confession #{int(code):03d} received a new anonymous reply:\n{reply_content}"
+                            )
+                        except Exception:
+                            pass
+                else:
+                    # Create embed for reply when original confession not found
+                    reply_embed = discord.Embed(
+                        title=f"💬 Anonymous Reply to Confession #{int(code):03d}",
+                        description=reply_content,
+                        color=0xe74c3c,
+                        timestamp=discord.utils.utcnow()
+                    )
+                    reply_embed.set_footer(text="Original confession not found")
+                    
+                    await confession_channel.send(embed=reply_embed)
+                    await message.channel.send(f"⚠️ Confession #{int(code):03d} not found in **{confession_channel.guild.name}**. Your reply was posted as a normal message.")
                 return
 
         if len(confession_channels) > 1:
@@ -412,8 +455,41 @@ async def on_message(message):
         
         confession_channel = confession_channels[0]
 
-        view = ServerSelectView([confession_channel], message)
-        await view.process_confession(confession_channel, message)
+        # For single server, process confession directly without creating a view
+        guild_id = confession_channel.guild.id
+        key = (message.author.id, guild_id)
+        now = time.time()
+        last = user_last_confession.get(key, 0)
+        if now - last < CONFESSION_RATE_LIMIT:
+            await message.channel.send("⏳ Please wait before sending another confession in this server.")
+            return
+        user_last_confession[key] = now
+
+        content = message.content.strip()
+        if not content:
+            await message.channel.send("❌ Your confession cannot be empty.")
+            return
+        
+        code = get_next_confession_code(guild_id)
+        
+        # Create embed for confession to prevent @everyone pings
+        embed = discord.Embed(
+            title=f"💬 Anonymous Confession #{code:03d}",
+            description=content,
+            color=0x3498db,
+            timestamp=discord.utils.utcnow()
+        )
+        embed.set_footer(text=f"Reply using: DM me 'reply #{code:03d} your message'")
+        
+        confession_msg = await confession_channel.send(embed=embed)
+        await confession_msg.add_reaction("👍")
+        await confession_msg.add_reaction("👎")
+        
+        confession_map = load_confession_map()
+        confession_map[str(code)] = message.author.id
+        save_confession_map(confession_map)
+        
+        await message.channel.send(f"✅ Your confession has been posted anonymously in **{confession_channel.guild.name}**!")
 
     await bot.process_commands(message)
 
