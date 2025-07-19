@@ -86,7 +86,12 @@ intents.guilds = True
 intents.message_content = True
 intents.members = True  
 
-bot = commands.Bot(command_prefix='!', intents=intents)
+bot = commands.Bot(
+    command_prefix='!', 
+    intents=intents,
+    reconnect=True,
+    max_messages=1000  
+)
 
 class ServerSelectView(discord.ui.View):
     def __init__(self, confession_channels, user_message):
@@ -114,9 +119,11 @@ class ServerSelectView(discord.ui.View):
             
             await self.process_confession(confession_channel, self.user_message)
             
+            # The process_confession method already sends a confirmation message
+            # Just edit the button message to show success
             embed = discord.Embed(
                 title="✅ Server Selected!",
-                description=f"Your confession will be posted in **{confession_channel.guild.name}**",
+                description=f"Confession posted successfully!",
                 color=0x00ff00
             )
             await interaction.edit_original_response(embed=embed, view=None)
@@ -192,7 +199,7 @@ class ReplySelectView(discord.ui.View):
             
             embed = discord.Embed(
                 title="✅ Server Selected!",
-                description=f"Your reply will be posted in **{confession_channel.guild.name}**",
+                description=f"Reply posted successfully!",
                 color=0x00ff00
             )
             await interaction.edit_original_response(embed=embed, view=None)
@@ -255,17 +262,52 @@ async def on_ready():
 @commands.has_permissions(administrator=True)
 async def setup(ctx, channel: discord.TextChannel):
     """Set the confession channel for this server."""
+    permissions = channel.permissions_for(ctx.guild.me)
+    if not permissions.send_messages:
+        await ctx.send("❌ I don't have permission to send messages in that channel. Please give me 'Send Messages' permission.")
+        return
+    if not permissions.embed_links:
+        await ctx.send("❌ I don't have permission to send embeds in that channel. Please give me 'Embed Links' permission.")
+        return
+    if not permissions.add_reactions:
+        await ctx.send("❌ I don't have permission to add reactions in that channel. Please give me 'Add Reactions' permission.")
+        return
+    
     guild_map = load_guild_map()
+    
+    existing_channel_id = guild_map.get(str(ctx.guild.id))
+    if existing_channel_id:
+        existing_channel = bot.get_channel(existing_channel_id)
+        if existing_channel:
+            await ctx.send(f"⚠️ Confession channel is already set to {existing_channel.mention}.\nChanging it to {channel.mention}...")
+        else:
+            await ctx.send(f"⚠️ Previous confession channel no longer exists.\nSetting new channel to {channel.mention}...")
+    
     guild_map[str(ctx.guild.id)] = channel.id
     save_guild_map(guild_map)
+    
     await ctx.send(f"✅ Confession channel set to {channel.mention}")
+    
+    test_embed = discord.Embed(
+        title="🎉 Whispr Setup Complete!",
+        description="This server is now ready for anonymous confessions!\n\nUsers can DM me to send confessions and replies.",
+        color=0x00ff00
+    )
+    test_embed.set_footer(text="This is a test message - setup successful!")
+    
+    await channel.send(embed=test_embed)
 
 @setup.error
 async def setup_error(ctx, error):
     if isinstance(error, commands.MissingPermissions):
         await ctx.send("❌ You need administrator permissions to use this command.")
+    elif isinstance(error, commands.MissingRequiredArgument):
+        await ctx.send("❌ Usage: `!setup #channel`\nExample: `!setup #confessions`")
+    elif isinstance(error, commands.BadArgument):
+        await ctx.send("❌ Please mention a valid text channel.\nUsage: `!setup #channel`")
     else:
-        await ctx.send("❌ Usage: !setup #channel")
+        await ctx.send("❌ An error occurred during setup. Please try again or contact support.")
+        print(f"Setup error: {error}")  
 
 @bot.event
 async def on_guild_join(guild):
@@ -383,11 +425,46 @@ async def whisprhelp(ctx):
         "• `!setup #channel` — Set the confession channel (admin only).\n"
         "• DM me your message — Send an anonymous confession.\n"
         "• DM me `reply #001 your message` — Reply anonymously to confession #001.\n"
-        "• Wait 30 seconds between confessions.\n"
+        "• Wait 30 seconds between confessions per server.\n"
         "• Confessions and replies are anonymous.\n"
         "• Only server admins can run `!setup`.\n"
         "• If you need more help, contact your server admin."
     )
     await ctx.send(help_text)
+
+@bot.command(name="status")
+@commands.has_permissions(administrator=True)
+async def status(ctx):
+    """Check if confession channel is set up for this server (admin only)."""
+    guild_map = load_guild_map()
+    channel_id = guild_map.get(str(ctx.guild.id))
+    
+    if not channel_id:
+        await ctx.send("❌ No confession channel set up for this server.\nUse `!setup #channel` to set one up.")
+        return
+    
+    channel = bot.get_channel(channel_id)
+    if not channel:
+        await ctx.send("❌ Confession channel was set but no longer exists.\nUse `!setup #channel` to set a new one.")
+        return
+    
+    permissions = channel.permissions_for(ctx.guild.me)
+    missing_perms = []
+    if not permissions.send_messages:
+        missing_perms.append("Send Messages")
+    if not permissions.embed_links:
+        missing_perms.append("Embed Links")
+    if not permissions.add_reactions:
+        missing_perms.append("Add Reactions")
+    
+    if missing_perms:
+        await ctx.send(f"⚠️ Confession channel: {channel.mention}\n❌ Missing permissions: {', '.join(missing_perms)}")
+    else:
+        await ctx.send(f"✅ Confession channel: {channel.mention}\n✅ All permissions are correct!")
+
+@status.error
+async def status_error(ctx, error):
+    if isinstance(error, commands.MissingPermissions):
+        await ctx.send("❌ You need administrator permissions to use this command.")
 
 bot.run(TOKEN)
